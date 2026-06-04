@@ -7,9 +7,9 @@ langchain-openai==0.1.23
 
 pinecone==9.1.0
 
-upstage-ai==0.2.2
-python-dotenv==1.0.1
+upstage
 
+python-dotenv==1.0.1
 tiktoken==0.7.0
 requests==2.32.3
 numpy==1.26.4
