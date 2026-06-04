@@ -6,11 +6,10 @@ langchain-core==0.2.38
 langchain-openai==0.1.23
 
 pinecone==9.1.0
-
 upstage
 
 python-dotenv==1.0.1
-tiktoken==0.7.0
+tiktoken
 requests==2.32.3
 numpy==1.26.4
 pandas==2.2.2
