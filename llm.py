@@ -1,20 +1,21 @@
-from langchain_core.output_parsers import StrOutputParser
-from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder, FewShotChatMessagePromptTemplate
 import os
-from langchain_upstage import ChatUpstage
+from pinecone import Pinecone
+from langchain_community.vectorstores import Pinecone as PineconeVectorStore
 from langchain_upstage import UpstageEmbeddings
-from langchain_pinecone import PineconeVectorStore
+
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder, FewShotChatMessagePromptTemplate
+from langchain_upstage import ChatUpstage
 from langchain.chains import create_retrieval_chain, create_history_aware_retriever
 from langchain.chains.combine_documents import create_stuff_documents_chain
+
 from langchain_community.chat_message_histories import ChatMessageHistory
 from langchain_core.chat_history import BaseChatMessageHistory
 from langchain_core.runnables.history import RunnableWithMessageHistory
 
 from config import answer_examples
 
-store = {}
 
-# Session History 관리 함수
+store = {}
 def get_session_history(session_id: str) -> BaseChatMessageHistory:
     if session_id not in store:
         store[session_id] = ChatMessageHistory()
@@ -23,11 +24,17 @@ def get_session_history(session_id: str) -> BaseChatMessageHistory:
 
 def get_retriever():
     embeddings = UpstageEmbeddings(model="solar-embedding-1-large")
-    index_name = 'take-guide-index'
-    database = PineconeVectorStore.from_existing_index(index_name=index_name, embedding=embeddings)
-    retriever = database.as_retriever()
 
-    return retriever
+    pc = Pinecone(api_key=os.environ["PINECONE_API_KEY"])
+    index = pc.Index("take-guide-index")
+
+    vectorstore = PineconeVectorStore(
+        index=index,
+        embedding=embeddings,
+        text_key="text"
+    )
+
+    return vectorstore.as_retriever()
 
 
 def get_history_retriever():
@@ -51,7 +58,9 @@ def get_history_retriever():
     )
 
     history_aware_retriever = create_history_aware_retriever(
-        llm, retriever, contextualize_q_prompt
+        llm
+        , retriever
+        , contextualize_q_prompt
     )  
 
     return history_aware_retriever
@@ -86,15 +95,27 @@ def get_rag_chain():
         1. 반드시 제공된 Context 문서만 사용하세요.
         2. 문서에 없는 내용은 추측하지 마세요.
         3. 관련 API가 없다면 "관련 API를 찾을 수 없습니다."라고 답변하세요.
-        4. API 이름을 먼저 제시하세요.
-        5. API 설명을 제공하세요.
-        6. Parameter 정보를 표로 정리하세요.
-        7. Return 정보를 표로 정리하세요.
-        8. 예제가 있으면 함께 제공하세요.
+        
+        테이블은 반드시 아래 규칙을 지켜서 출력하세요:
+        다음 5개 컬럼을 반드시 유지하세요:
 
+        | Parameter Type | Parameter | Param설명 | Return Type | Return 설명 |
+
+        규칙:
+        - 각 컬럼은 반드시 하나의 의미만 가진다
+        - Return Type에는 타입만 작성
+        - Return 설명에는 설명만 작성
+        - 절대 합치지 않는다
+        - 한 셀에 두 개 이상의 의미를 넣지 않는다
+
+        예시:
+
+        | Object | pThis | 대상 폼 | Boolean | true: 성공 / false: 실패 |
+                     
         {context}
         """
         )
+    
     qa_prompt = ChatPromptTemplate.from_messages(
         [
             ("system", system_prompt),
@@ -114,18 +135,20 @@ def get_rag_chain():
         input_messages_key="input",
         history_messages_key="chat_history",
         output_messages_key="answer",
-    ).pick('answer')
+    )
 
     return conversational_rag_chain
 
 
-def get_ai_response(user_message : str) -> str:
-    
+
+def get_ai_response(question):
     rag_chain = get_rag_chain()
 
-    response = rag_chain.stream(
-        {"input": user_message},
-        config={"configurable": {"session_id": "abc123"}},
-        )
+    result = rag_chain.invoke({"input": question}
+                              ,config={
+                                  "configurable":{
+                                      "session_id": "default_user"
+                                  }
+                              })
 
-    return response
+    return result["answer"]
