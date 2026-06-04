@@ -109,7 +109,6 @@ def get_rag_chain():
         - 한 셀에 두 개 이상의 의미를 넣지 않는다
 
         예시:
-
         | Object | pThis | 대상 폼 | Boolean | true: 성공 / false: 실패 |
                      
         {context}
